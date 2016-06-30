@@ -2,7 +2,8 @@
 <h2> Microsoft Exchange to ES email puller</h2>
 
 Gets emails off the folder in MS Exchange and pushes them to ES index. Supports attachments.
-Can read .pst files to get your archives to ES index as well.
+Can read .pst files to get your archives to ES index as well. 
+Runs in background to get the emails pulled automatically (see -interval options)
 Use [Outlook4All app](https://github.com/dsoin/outlook4all) for searching over indexed emails.
 
 Usage:
