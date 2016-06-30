@@ -1,0 +1,34 @@
+apply plugin: 'java'
+apply plugin: 'application'
+mainClassName = "com.dsoin.ewspuller.EWSPuller"
+
+repositories {
+    mavenCentral()
+    maven { url "http://maven.restlet.org" }
+}
+
+dependencies {
+    compile group:'org.apache.httpcomponents',name:'httpclient',version:'4.3.3'
+
+    compile group:'commons-primitives',name:'commons-primitives',version:'1.0'
+    compile 'org.elasticsearch:elasticsearch:1.4.0'
+    compile 'org.jsoup:jsoup:1.8.1'
+    compile 'jcifs:jcifs:1.3.17'
+    compile 'args4j:args4j:2.33'
+    compile 'com.pff:java-libpst:0.7'
+    compile 'commons-httpclient:commons-httpclient:3.1'
+    compile files('lib/ews-java-api-1.3-SNAPSHOT.jar')
+    }
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/'
+        }
+    }
+}
+
+applicationDistribution.from("ewspuller.properties") {
+    into ""
+}
+
