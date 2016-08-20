@@ -51,6 +51,9 @@ public class EWSPuller {
     @Option(name = "-interval", required = false, usage = "Pull interval in minutes")
     private static int pullInterval= 60;
 
+    @Option(name = "-initES", required = false, usage = "Initialize ES index")
+    private static boolean initES= false;
+
     private static SimpleLog log = new SimpleLog(EWSPuller.class.getName());
 
     private static Client client = new TransportClient().
@@ -66,6 +69,7 @@ public class EWSPuller {
     public void doMain(String[] args) throws Exception {
 
         CmdLineParser parser = new CmdLineParser(this);
+        PSTHelper pstHelper = new PSTHelper(esPort);
 
         parser.parseArgument(args);
         if (args.length == 0) {
@@ -74,8 +78,13 @@ public class EWSPuller {
         }
 
         if (!"".equals(pstFile)) {
-            PSTHelper pstHelper = new PSTHelper(esPort);
+
             pstHelper.indexPST(pstFile);
+            System.exit(0);
+        }
+
+        if (initES) {
+            pstHelper.prepareIndexesAndMappings();
             System.exit(0);
         }
 

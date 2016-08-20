@@ -3,6 +3,8 @@ package com.dsoin.ewspuller;
 import com.pff.*;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.logging.impl.SimpleLog;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -11,6 +13,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndexMissingException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -153,8 +156,8 @@ public class PSTHelper {
 
     }
 
-    private  void prepareIndexesAndMappings() throws IOException {
-/*
+    public  void prepareIndexesAndMappings() throws IOException {
+
         try {
 
             client.admin().indices().delete(new DeleteIndexRequest("emails"));
@@ -163,7 +166,7 @@ public class PSTHelper {
             client.admin().indices().deleteMapping(new DeleteMappingRequest("attachments").types("*")).actionGet();
         } catch (IndexMissingException ex) {
         }
-        */
+
         client.admin().indices().preparePutTemplate("emails").
                 setSource(new String(Files.readAllBytes(Paths.get("emails-template.json")))).
 
