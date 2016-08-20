@@ -75,7 +75,7 @@ public class EWSPuller {
 
         if (!"".equals(pstFile)) {
             PSTHelper pstHelper = new PSTHelper(esPort);
-            pstHelper.indexPST(args[0]);
+            pstHelper.indexPST(pstFile);
             System.exit(0);
         }
 
