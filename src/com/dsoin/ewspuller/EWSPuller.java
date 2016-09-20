@@ -8,17 +8,16 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.jsoup.Jsoup;
-import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Console;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
+import java.net.UnknownHostException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -46,21 +45,21 @@ public class EWSPuller {
     private static String pstFile = "";
 
     @Option(name = "-esport", required = false, usage = "ES port")
-    private static int esPort= 9300;
+    private static int esPort = 9300;
+
+    @Option(name = "-eshost", required = false, usage = "ES host")
+    private static String esHost = "127.0.0.1";
 
     @Option(name = "-interval", required = false, usage = "Pull interval in minutes")
-    private static int pullInterval= 60;
+    private static int pullInterval = 60;
 
     @Option(name = "-initES", required = false, usage = "Initialize ES index")
-    private static boolean initES= false;
+    private static boolean initES = false;
 
     private static SimpleLog log = new SimpleLog(EWSPuller.class.getName());
+    private static Client client;
 
-    private static Client client = new TransportClient().
-            addTransportAddress(new InetSocketTransportAddress("localhost", 9300));
 
-    @Argument
-    private List<String> arguments = new ArrayList<String>();
 
     public static void main(final String[] args) throws Exception {
         new EWSPuller().doMain(args);
@@ -69,13 +68,17 @@ public class EWSPuller {
     public void doMain(String[] args) throws Exception {
 
         CmdLineParser parser = new CmdLineParser(this);
-        PSTHelper pstHelper = new PSTHelper(esPort);
-
         parser.parseArgument(args);
         if (args.length == 0) {
             parser.printUsage(System.err);
             System.exit(0);
         }
+
+        client = TransportClient.builder().build()
+                .addTransportAddress(
+                        new InetSocketTransportAddress(InetAddress.getByName(esHost), esPort));
+
+        PSTHelper pstHelper = new PSTHelper(client);
 
         if (!"".equals(pstFile)) {
 
@@ -105,7 +108,7 @@ public class EWSPuller {
         if (folderID == null)
             throw new IllegalStateException("Cannot find folder " + folderName);
 
-        String confirm = console.readLine("Folder " + folderName+" will be synced to ES and all synced " +
+        String confirm = console.readLine("Folder " + folderName + " will be synced to ES and all synced " +
                 "emails will be deleted. OK to continue? [y/n]:");
         if (!"y".equalsIgnoreCase(confirm))
             throw new IllegalStateException("Exit");
@@ -155,7 +158,7 @@ public class EWSPuller {
 
     private static FolderId getFolderId(String folderName, ExchangeService service) throws Exception {
         Folder rootFolder = Folder.bind(service, WellKnownFolderName.Inbox);
-        for (Folder folder:rootFolder.findFolders(new FolderView(100))) {
+        for (Folder folder : rootFolder.findFolders(new FolderView(100))) {
             log.info(folder.getDisplayName());
             if (folderName.equalsIgnoreCase(folder.getDisplayName())) {
                 log.info("Found folder " + folder.getDisplayName() + " with " + folder.getTotalCount() + " emails");

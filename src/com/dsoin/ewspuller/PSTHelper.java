@@ -4,16 +4,12 @@ import com.pff.*;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.logging.impl.SimpleLog;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndexMissingException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,13 +24,10 @@ import java.util.Vector;
  */
 public class PSTHelper {
     final static SimpleLog log = new SimpleLog(PSTHelper.class.getName());
-    private int esPort=9300;
+    private Client client;
 
-    private  Client client = new TransportClient().
-            addTransportAddress(new InetSocketTransportAddress("localhost", esPort));
-
-    public PSTHelper(int port) {
-        esPort=port;
+    public PSTHelper(Client client) {
+        this.client = client;
     }
 
     public void indexPST(String filename) throws IOException, PSTException {
@@ -75,35 +68,36 @@ public class PSTHelper {
                     email = (PSTMessage) folder.getNextChild();
                     //break;
                 } catch (PSTException ex) {
-                    log.error("Error getting next child",ex);
-                    email=null;
+                    log.error("Error getting next child", ex);
+                    email = null;
                 }
             }
         }
-        log.info("Pushed " + pushed +" emails");
+        log.info("Pushed " + pushed + " emails");
     }
 
-    private  boolean alreadyIndexed(PSTMessage email) {
+    private boolean alreadyIndexed(PSTMessage email) {
         if ("".equals(email.getBody()) && "".equals(email.getBodyHTML()))
             return true;
         SearchResponse response = client.prepareSearch("emails").setSearchType(SearchType.QUERY_THEN_FETCH).
-                setQuery(QueryBuilders.matchPhrasePrefixQuery("body",email.getBody())).execute().actionGet();
-        if (response.getHits().getHits().length>0)
+                setQuery(QueryBuilders.matchPhrasePrefixQuery("body", email.getBody())).execute().actionGet();
+        if (response.getHits().getHits().length > 0)
             return true;
         response = client.prepareSearch("emails").setSearchType(SearchType.QUERY_THEN_FETCH).
-                setQuery(QueryBuilders.matchPhrasePrefixQuery("body_html",email.getBodyHTML())).execute().actionGet();
-        if (response.getHits().getHits().length>0)
+                setQuery(QueryBuilders.matchPhrasePrefixQuery("body_html", email.getBodyHTML())).execute().actionGet();
+        if (response.getHits().getHits().length > 0)
             return true;
         return false;
 
     }
-    private  void pushAttachments(PSTMessage email, String id) throws PSTException, IOException {
-        for (int i=0;i<email.getNumberOfAttachments();i++) {
+
+    private void pushAttachments(PSTMessage email, String id) throws PSTException, IOException {
+        for (int i = 0; i < email.getNumberOfAttachments(); i++) {
             PSTAttachment attach = email.getAttachment(i);
             Map<String, Object> emailJson = new HashMap<>();
-            String filename = attach.getLongFilename().isEmpty()?attach.getFilename():attach.getLongFilename();
+            String filename = attach.getLongFilename().isEmpty() ? attach.getFilename() : attach.getLongFilename();
             byte[] encodedAttach = getAttachment(attach);
-            if (encodedAttach!=null) {
+            if (encodedAttach != null) {
                 emailJson.put("filename", filename);
                 emailJson.put("email_id", id);
                 emailJson.put("mime", attach.getMimeTag());
@@ -120,11 +114,11 @@ public class PSTHelper {
         }
     }
 
-    private  byte[] getAttachment(PSTAttachment attach) throws IOException, PSTException {
+    private byte[] getAttachment(PSTAttachment attach) throws IOException, PSTException {
         InputStream attachmentStream = attach.getFileInputStream();
         byte[] buffer = new byte[attach.getAttachSize()];
         int count = attachmentStream.read(buffer);
-        if (count<=0)
+        if (count <= 0)
             return null;
         byte[] endBuffer = new byte[count];
         System.arraycopy(buffer, 0, endBuffer, 0, count);
@@ -133,7 +127,7 @@ public class PSTHelper {
 
     }
 
-    private  String  pushEmail(PSTMessage email) {
+    private String pushEmail(PSTMessage email) {
         Map<String, Object> emailJson = new HashMap<>();
         emailJson.put("topic", email.getConversationTopic());
         emailJson.put("body", email.getBody());
@@ -143,8 +137,7 @@ public class PSTHelper {
         emailJson.put("sender_email", email.getSenderEmailAddress());
         emailJson.put("sent_to", email.getDisplayTo());
         if (email.hasAttachments())
-            emailJson.put("has_attachment",true);
-
+            emailJson.put("has_attachment", true);
 
 
         IndexResponse response = client.prepareIndex("emails", "ssc")
@@ -156,16 +149,11 @@ public class PSTHelper {
 
     }
 
-    public  void prepareIndexesAndMappings() throws IOException {
+    public void prepareIndexesAndMappings() throws IOException {
 
-        try {
 
-            client.admin().indices().delete(new DeleteIndexRequest("emails"));
-            client.admin().indices().delete(new DeleteIndexRequest("attachments"));
-            client.admin().indices().deleteMapping(new DeleteMappingRequest("emails").types("*")).actionGet();
-            client.admin().indices().deleteMapping(new DeleteMappingRequest("attachments").types("*")).actionGet();
-        } catch (IndexMissingException ex) {
-        }
+        client.admin().indices().delete(new DeleteIndexRequest("emails"));
+        client.admin().indices().delete(new DeleteIndexRequest("attachments"));
 
         client.admin().indices().preparePutTemplate("emails").
                 setSource(new String(Files.readAllBytes(Paths.get("emails-template.json")))).
