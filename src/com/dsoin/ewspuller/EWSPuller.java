@@ -158,7 +158,7 @@ public class EWSPuller {
 
     private static FolderId getFolderId(String folderName, ExchangeService service) throws Exception {
         Folder rootFolder = Folder.bind(service, WellKnownFolderName.Inbox);
-        if (folderName.equals(rootFolder.getDisplayName())
+        if (folderName.equals(rootFolder.getDisplayName()))
             return rootFolder.getId();
         for (Folder folder : rootFolder.findFolders(new FolderView(100))) {
             log.info(folder.getDisplayName());
