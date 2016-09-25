@@ -16,7 +16,6 @@ import java.io.Console;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -56,6 +55,9 @@ public class EWSPuller {
     @Option(name = "-initES", required = false, usage = "Initialize ES index")
     private static boolean initES = false;
 
+    @Option(name = "-batch_mode", required = false, usage = "Run without user interaction")
+    private static boolean batch_mode = false;
+
     private static SimpleLog log = new SimpleLog(EWSPuller.class.getName());
     private static Client client;
 
@@ -91,15 +93,18 @@ public class EWSPuller {
             System.exit(0);
         }
 
-        Console console = System.console();
-        if (console == null) {
+        Console console = null;
+        if (! batch_mode ) {
+            console = System.console();
+            if (console == null) {
 
-            System.out.println("Cannot obtain system console");
-            System.exit(0);
-        }
+                System.out.println("Cannot obtain system console");
+                System.exit(0);
+            }
 
-        if ("".equals(pstFile) && "".equals(password)) {
-            password = new String(console.readPassword("Exchange password:"));
+            if ("".equals(pstFile) && "".equals(password)) {
+                password = new String(console.readPassword("Exchange password:"));
+            }
         }
 
         ExchangeService service = getExchangeService(username, password);
@@ -108,10 +113,12 @@ public class EWSPuller {
         if (folderID == null)
             throw new IllegalStateException("Cannot find folder " + folderName);
 
-        String confirm = console.readLine("Folder " + folderName + " will be synced to ES and all synced " +
-                "emails will be deleted. OK to continue? [y/n]:");
-        if (!"y".equalsIgnoreCase(confirm))
-            throw new IllegalStateException("Exit");
+        if (! batch_mode ) {
+            String confirm = console.readLine("Folder " + folderName + " will be synced to ES and all synced " +
+                    "emails will be deleted. OK to continue? [y/n]:");
+            if (!"y".equalsIgnoreCase(confirm))
+                throw new IllegalStateException("Exit");
+        }
 
         Runnable puller = () -> {
             try {
