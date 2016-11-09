@@ -4,9 +4,10 @@ import microsoft.exchange.webservices.data.*;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.logging.impl.SimpleLog;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.jsoup.Jsoup;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -43,6 +44,9 @@ public class EWSPuller {
     @Option(name = "-pst", required = false, usage = "PST file to index")
     private static String pstFile = "";
 
+    @Option(name = "-dataType", required = false, usage = "Data type to use")
+    private static String dataType = "emails";
+
     @Option(name = "-esport", required = false, usage = "ES port")
     private static int esPort = 9300;
 
@@ -59,8 +63,7 @@ public class EWSPuller {
     private static boolean batch_mode = false;
 
     private static SimpleLog log = new SimpleLog(EWSPuller.class.getName());
-    private static Client client;
-
+    private static TransportClient client;
 
 
     public static void main(final String[] args) throws Exception {
@@ -76,7 +79,7 @@ public class EWSPuller {
             System.exit(0);
         }
 
-        client = TransportClient.builder().build()
+        client = new PreBuiltTransportClient(Settings.EMPTY)
                 .addTransportAddress(
                         new InetSocketTransportAddress(InetAddress.getByName(esHost), esPort));
 
@@ -84,17 +87,17 @@ public class EWSPuller {
 
         if (!"".equals(pstFile)) {
 
-            pstHelper.indexPST(pstFile);
+            pstHelper.indexPST(pstFile, dataType);
             System.exit(0);
         }
 
         if (initES) {
-            pstHelper.prepareIndexesAndMappings();
+            pstHelper.prepareIndexesAndMappings(dataType);
             System.exit(0);
         }
 
         Console console = null;
-        if (! batch_mode ) {
+        if (!batch_mode) {
             console = System.console();
             if (console == null) {
 
@@ -113,7 +116,7 @@ public class EWSPuller {
         if (folderID == null)
             throw new IllegalStateException("Cannot find folder " + folderName);
 
-        if (! batch_mode ) {
+        if (!batch_mode) {
             String confirm = console.readLine("Folder " + folderName + " will be synced to ES and all synced " +
                     "emails will be deleted. OK to continue? [y/n]:");
             if (!"y".equalsIgnoreCase(confirm))

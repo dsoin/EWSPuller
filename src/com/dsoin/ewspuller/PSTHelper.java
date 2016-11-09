@@ -1,7 +1,6 @@
 package com.dsoin.ewspuller;
 
 import com.pff.*;
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.logging.impl.SimpleLog;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -15,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Vector;
@@ -30,14 +30,14 @@ public class PSTHelper {
         this.client = client;
     }
 
-    public void indexPST(String filename) throws IOException, PSTException {
+    public void indexPST(String filename, String dataType) throws IOException, PSTException {
         PSTFile pstFile = new PSTFile(filename);
-        indexPSTFolder(pstFile.getRootFolder());
+        indexPSTFolder(pstFile.getRootFolder(), dataType);
 
     }
 
 
-    private void indexPSTFolder(PSTFolder folder)
+    private void indexPSTFolder(PSTFolder folder, String dataType)
             throws PSTException, IOException {
 
 
@@ -45,7 +45,7 @@ public class PSTHelper {
         if (folder.hasSubfolders()) {
             Vector<PSTFolder> childFolders = folder.getSubFolders();
             for (PSTFolder childFolder : childFolders) {
-                indexPSTFolder(childFolder);
+                indexPSTFolder(childFolder, dataType);
             }
         }
 
@@ -56,7 +56,7 @@ public class PSTHelper {
             PSTMessage email = (PSTMessage) folder.getNextChild();
             while (email != null) {
 
-                if (!alreadyIndexed(email)) {
+                if (!alreadyIndexed(email, dataType)) {
                     String id = pushEmail(email);
                     if (email.hasAttachments()) {
                         pushAttachments(email, id);
@@ -76,14 +76,14 @@ public class PSTHelper {
         log.info("Pushed " + pushed + " emails");
     }
 
-    private boolean alreadyIndexed(PSTMessage email) {
+    private boolean alreadyIndexed(PSTMessage email, String dataType) {
         if ("".equals(email.getBody()) && "".equals(email.getBodyHTML()))
             return true;
-        SearchResponse response = client.prepareSearch("emails").setSearchType(SearchType.QUERY_THEN_FETCH).
+        SearchResponse response = client.prepareSearch("data").setTypes(dataType).setSearchType(SearchType.QUERY_THEN_FETCH).
                 setQuery(QueryBuilders.matchPhrasePrefixQuery("body", email.getBody())).execute().actionGet();
         if (response.getHits().getHits().length > 0)
             return true;
-        response = client.prepareSearch("emails").setSearchType(SearchType.QUERY_THEN_FETCH).
+        response = client.prepareSearch("data").setTypes(dataType).setSearchType(SearchType.QUERY_THEN_FETCH).
                 setQuery(QueryBuilders.matchPhrasePrefixQuery("body_html", email.getBodyHTML())).execute().actionGet();
         if (response.getHits().getHits().length > 0)
             return true;
@@ -99,12 +99,12 @@ public class PSTHelper {
             byte[] encodedAttach = getAttachment(attach);
             if (encodedAttach != null) {
                 emailJson.put("filename", filename);
-                emailJson.put("email_id", id);
+                emailJson.put("data_id", id);
                 emailJson.put("mime", attach.getMimeTag());
                 emailJson.put("size", attach.getAttachSize());
-                emailJson.put("attachment", new String(encodedAttach));
+                emailJson.put("attachment", encodedAttach);
 
-                IndexResponse response = client.prepareIndex("attachments", "ssc")
+                IndexResponse response = client.prepareIndex("attachments", "binary")
                         .setSource(emailJson
                         )
                         .execute()
@@ -123,7 +123,7 @@ public class PSTHelper {
         byte[] endBuffer = new byte[count];
         System.arraycopy(buffer, 0, endBuffer, 0, count);
         attachmentStream.close();
-        return Base64.encodeBase64(endBuffer);
+        return Base64.getEncoder().encode(endBuffer);
 
     }
 
@@ -140,7 +140,7 @@ public class PSTHelper {
             emailJson.put("has_attachment", true);
 
 
-        IndexResponse response = client.prepareIndex("emails", "ssc")
+        IndexResponse response = client.prepareIndex("data", "cxps")
                 .setSource(emailJson
                 )
                 .execute()
@@ -149,14 +149,14 @@ public class PSTHelper {
 
     }
 
-    public void prepareIndexesAndMappings() throws IOException {
+    public void prepareIndexesAndMappings(String dataType) throws IOException {
 
 
-        client.admin().indices().delete(new DeleteIndexRequest("emails"));
+        client.admin().indices().delete(new DeleteIndexRequest("data"));
         client.admin().indices().delete(new DeleteIndexRequest("attachments"));
 
-        client.admin().indices().preparePutTemplate("emails").
-                setSource(new String(Files.readAllBytes(Paths.get("emails-template.json")))).
+        client.admin().indices().preparePutTemplate("data").
+                setSource(new String(Files.readAllBytes(Paths.get("data-template.json")))).
 
                 execute().actionGet();
         client.admin().indices().preparePutTemplate("attachments").
@@ -164,7 +164,7 @@ public class PSTHelper {
 
                 execute().actionGet();
 
-        client.admin().indices().create(Requests.createIndexRequest("emails")).actionGet();
+        client.admin().indices().create(Requests.createIndexRequest("data")).actionGet();
     }
 
 

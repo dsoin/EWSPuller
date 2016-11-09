@@ -1,0 +1,19 @@
+{
+  "template" : "data",
+  "settings" : {
+    "index.refresh_interval" : "5s"
+  },
+  "mappings" : {
+    "data" : {
+      "properties": {
+        "topic" : {"type":"text", "store":"true","boost":"2.0","fields":{"raw":{"type":"keyword"}}},
+        "body" : {"type":"text", "store":"true","boost":"1.5","fields":{"raw":{"type":"keyword"}}},
+        "body_html" : {"type":"text", "store":"true","fields":{"raw":{"type":"keyword"}}},
+        "sender" : {"type":"text", "store":"true","fields":{"raw":{"type":"keyword"}}},
+        "sent_to" : {"type":"text", "store":"true","fields":{"raw":{"type":"keyword"}}},
+        "submit_time":{"type":"date", "store":"true"},
+        "has_attachment":{"type":"boolean", "store":"true"}
+      }
+    }
+  }
+}
