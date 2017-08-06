@@ -57,9 +57,9 @@ public class PSTHelper {
             while (email != null) {
 
                 if (!alreadyIndexed(email, dataType)) {
-                    String id = pushEmail(email);
+                    String id = pushEmail(email,dataType);
                     if (email.hasAttachments()) {
-                        pushAttachments(email, id);
+                        pushAttachments(email, id, dataType);
 
                     }
                     pushed++;
@@ -91,7 +91,7 @@ public class PSTHelper {
 
     }
 
-    private void pushAttachments(PSTMessage email, String id) throws PSTException, IOException {
+    private void pushAttachments(PSTMessage email, String id, String dataType) throws PSTException, IOException {
         for (int i = 0; i < email.getNumberOfAttachments(); i++) {
             PSTAttachment attach = email.getAttachment(i);
             Map<String, Object> emailJson = new HashMap<>();
@@ -104,7 +104,7 @@ public class PSTHelper {
                 emailJson.put("size", attach.getAttachSize());
                 emailJson.put("attachment", encodedAttach);
 
-                IndexResponse response = client.prepareIndex("attachments", "binary")
+                IndexResponse response = client.prepareIndex("attachments", dataType)
                         .setSource(emailJson
                         )
                         .execute()
@@ -127,7 +127,7 @@ public class PSTHelper {
 
     }
 
-    private String pushEmail(PSTMessage email) {
+    private String pushEmail(PSTMessage email, String dataType) {
         Map<String, Object> emailJson = new HashMap<>();
         emailJson.put("topic", email.getConversationTopic());
         emailJson.put("body", email.getBody());
@@ -140,7 +140,7 @@ public class PSTHelper {
             emailJson.put("has_attachment", true);
 
 
-        IndexResponse response = client.prepareIndex("data", "cxps")
+        IndexResponse response = client.prepareIndex("data", dataType)
                 .setSource(emailJson
                 )
                 .execute()

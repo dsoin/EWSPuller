@@ -198,7 +198,7 @@ public class EWSPuller {
         emailJson.put("attachment", new String(data));
         emailJson.put("mime", attach.getContentType());
 
-        IndexResponse response = client.prepareIndex("attachments", "ssc")
+        IndexResponse response = client.prepareIndex("attachments", dataType)
                 .setSource(emailJson
                 )
                 .execute()
@@ -221,7 +221,7 @@ public class EWSPuller {
             emailJson.put("has_attachment", true);
 
 
-        IndexResponse response = client.prepareIndex("emails", "ssc")
+        IndexResponse response = client.prepareIndex("emails", dataType)
                 .setSource(emailJson
                 )
                 .execute()
