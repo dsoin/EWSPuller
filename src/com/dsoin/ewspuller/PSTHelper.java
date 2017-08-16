@@ -1,7 +1,8 @@
 package com.dsoin.ewspuller;
 
 import com.pff.*;
-import org.apache.commons.logging.impl.SimpleLog;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -23,7 +24,8 @@ import java.util.Vector;
  * Created by soind on 11/21/2014.
  */
 public class PSTHelper {
-    final static SimpleLog log = new SimpleLog(PSTHelper.class.getName());
+    final private static Logger log = LogManager.getLogger(PSTHelper.class);
+
     private Client client;
 
     public PSTHelper(Client client) {

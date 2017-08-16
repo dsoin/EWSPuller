@@ -25,6 +25,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -154,18 +155,23 @@ public class EWSPuller {
         PropertySet itemPropertySet = new PropertySet(BasePropertySet.FirstClassProperties);
         itemPropertySet.setRequestedBodyType(BodyType.HTML);
         for (Item item : emails.getItems()) {
-            log.info(item.getSubject() + ":" + ((EmailMessage) item).getFrom().getName() + ":" + item.getHasAttachments());
-            item.load();
-            if (ingest_attachments && item.getHasAttachments())
-                ingestAttachmentMode(item);
-            else
-                pushEmailMode(item);
-            //item.delete(DeleteMode.HardDelete);
+            try {
+                log.info(item.getSubject() + ":" + ((EmailMessage) item).getFrom().getName() + ":" + item.getHasAttachments());
+                item.load();
+                if (ingest_attachments && item.getHasAttachments())
+                    ingestAttachmentMode(item);
+                else
+                    pushEmailMode(item);
+                //item.delete(DeleteMode.HardDelete);
+            } catch (Exception ex) {
+                log.error("Skipping email: "+item.getSubject(),ex);
+            }
         }
     }
 
     private static void pushEmailMode(Item item) throws Exception {
-        String id = pushEmail(item);
+        String id = pushEmail(item.getSubject(),item.getBody().toString(),
+                item.getDateTimeSent(),((EmailMessage) item).getFrom().getName(),item.getHasAttachments());
         if (item.getHasAttachments()) {
             item.load();
             log.info(item.getAttachments().getCount());
@@ -223,18 +229,16 @@ public class EWSPuller {
 
     }
 
-    private static String pushEmail(Item email) throws Exception {
+    private static String pushEmail(String subject, String bodyHtml, Date timeSent,
+                                    String from, boolean hasAttachments ) throws Exception {
         Map<String, Object> emailJson = new HashMap<>();
-
-
-        String topic = email.getSubject().replaceAll("^(FW|Fwd|fwd|FWD|RE|fw|re|Re|Fw):\\s", "");
-
+        String topic = subject.replaceAll("^(FW|Fwd|fwd|FWD|RE|fw|re|Re|Fw):\\s", "");
         emailJson.put("topic", topic);
-        emailJson.put("body", Jsoup.parse(email.getBody().toString()).body().text());
-        emailJson.put("body_html", email.getBody().toString());
-        emailJson.put("submit_time", email.getDateTimeSent());
-        emailJson.put("sender", ((EmailMessage) email).getFrom().getName());
-        if (email.getHasAttachments())
+        emailJson.put("body", Jsoup.parse(bodyHtml).body().text());
+        emailJson.put("body_html", bodyHtml);
+        emailJson.put("submit_time", timeSent);
+        emailJson.put("sender", from);
+        if (hasAttachments)
             emailJson.put("has_attachment", true);
 
         IndexResponse response = client.prepareIndex("emails", dataType)
@@ -246,16 +250,26 @@ public class EWSPuller {
 
     }
 
-    private static void ingestAttachmentMode(Item email) throws Exception {
+    private static void ingestAttachmentMode(Item email) throws ServiceLocalException {
+        ContentHandler handler = new ToXMLContentHandler();
+        AutoDetectParser parser = new AutoDetectParser();
+        Metadata metadata = new Metadata();
         for (Attachment attach : email.getAttachments()) {
-            ContentHandler handler = new BodyContentHandler(
-                    new ToXMLContentHandler());
+
             log.info("Parsing " + attach.getName() + " " + attach.getSize() + " bytes");
-            AutoDetectParser parser = new AutoDetectParser();
-            Metadata metadata = new Metadata();
-            try (InputStream stream = new ByteArrayInputStream(((FileAttachment) attach).getContent())) {
-                parser.parse(stream, handler, metadata);
-                log.info(handler.toString());
+            try {
+                attach.load();
+                try (InputStream stream = new ByteArrayInputStream(((FileAttachment) attach).getContent())) {
+                    parser.parse(stream, handler, metadata);
+//                    log.info(Jsoup.parse(handler.toString()).body().text());
+                    if (!"".equals(handler.toString())) {
+                        String id = pushEmail(email.getSubject(),handler.toString(),email.getDateTimeSent(),
+                                ((EmailMessage) email).getFrom().getName(),true);
+                        pushAttachment(attach,id);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Skipping attachment: " + ((FileAttachment) attach).getName(),e);
             }
         }
     }
