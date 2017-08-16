@@ -157,11 +157,12 @@ public class PSTHelper {
 
         client.admin().indices().preparePutTemplate("data").
                 setSource(new String(Files.readAllBytes(Paths.get("data-template.json")))).
-
                 execute().actionGet();
         client.admin().indices().preparePutTemplate("attachments").
                 setSource(new String(Files.readAllBytes(Paths.get("attachments-template.json")))).
-
+                execute().actionGet();
+        client.admin().indices().preparePutTemplate("attachments").
+                setSource(new String(Files.readAllBytes(Paths.get("attachments-template.json")))).
                 execute().actionGet();
 
         client.admin().indices().create(Requests.createIndexRequest("data")).actionGet();
