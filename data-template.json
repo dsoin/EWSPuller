@@ -4,11 +4,8 @@
     "index.refresh_interval" : "5s"
   },
   "mappings" : {
-    "data" : {
-      "_source": {
-        "excludes" : ["attachment_data"]
-                },
-      "properties": {
+    "*" : {
+        "properties": {
         "topic" : {"type":"text", "store":"true","boost":"2.0","fields":{"raw":{"type":"keyword"}}},
         "body" : {"type":"text", "store":"true","boost":"1.5","fields":{"raw":{"type":"keyword"}}},
         "body_html" : {"type":"text", "store":"true","fields":{"raw":{"type":"keyword"}}},

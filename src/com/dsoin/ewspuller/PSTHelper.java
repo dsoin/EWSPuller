@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Base64;
@@ -25,14 +26,14 @@ import java.util.Vector;
  */
 public class PSTHelper {
     final private static Logger log = LogManager.getLogger(PSTHelper.class);
+    final private ESHelper esHelper;
 
-    private Client client;
 
-    public PSTHelper(Client client) {
-        this.client = client;
+    public PSTHelper(String esHost, int esPort, String indexName, String dataType ) throws UnknownHostException {
+        esHelper = new ESHelper(esHost,esPort,indexName,dataType);
     }
 
-    public void indexPST(String filename, String dataType) throws IOException, PSTException {
+    public void indexPST(String filename, String dataType) throws Exception {
         PSTFile pstFile = new PSTFile(filename);
         indexPSTFolder(pstFile.getRootFolder(), dataType);
 
@@ -40,7 +41,7 @@ public class PSTHelper {
 
 
     private void indexPSTFolder(PSTFolder folder, String dataType)
-            throws PSTException, IOException {
+            throws Exception {
 
 
         // go through the folders...
@@ -58,10 +59,12 @@ public class PSTHelper {
             PSTMessage email = (PSTMessage) folder.getNextChild();
             while (email != null) {
 
-                if (!alreadyIndexed(email, dataType)) {
-                    String id = pushEmail(email,dataType);
+                if (!esHelper.alreadyIndexed(email.getBody(),email.getBodyHTML())) {
+                    String id = esHelper.pushEmail(email.getSubject(),email.getBodyHTML(),
+                            email.getClientSubmitTime(),email.getSenderName(),email.hasAttachments());
                     if (email.hasAttachments()) {
-                        pushAttachments(email, id, dataType);
+
+                        pushAttachments(email, id);
 
                     }
                     pushed++;
@@ -78,40 +81,13 @@ public class PSTHelper {
         log.info("Pushed " + pushed + " emails");
     }
 
-    private boolean alreadyIndexed(PSTMessage email, String dataType) {
-        if ("".equals(email.getBody()) && "".equals(email.getBodyHTML()))
-            return true;
-        SearchResponse response = client.prepareSearch("data").setTypes(dataType).setSearchType(SearchType.QUERY_THEN_FETCH).
-                setQuery(QueryBuilders.matchPhrasePrefixQuery("body", email.getBody())).execute().actionGet();
-        if (response.getHits().getHits().length > 0)
-            return true;
-        response = client.prepareSearch("data").setTypes(dataType).setSearchType(SearchType.QUERY_THEN_FETCH).
-                setQuery(QueryBuilders.matchPhrasePrefixQuery("body_html", email.getBodyHTML())).execute().actionGet();
-        if (response.getHits().getHits().length > 0)
-            return true;
-        return false;
-
-    }
-
-    private void pushAttachments(PSTMessage email, String id, String dataType) throws PSTException, IOException {
+    private void pushAttachments(PSTMessage email, String id) throws Exception {
         for (int i = 0; i < email.getNumberOfAttachments(); i++) {
             PSTAttachment attach = email.getAttachment(i);
-            Map<String, Object> emailJson = new HashMap<>();
             String filename = attach.getLongFilename().isEmpty() ? attach.getFilename() : attach.getLongFilename();
             byte[] encodedAttach = getAttachment(attach);
             if (encodedAttach != null) {
-                emailJson.put("filename", filename);
-                emailJson.put("data_id", id);
-                emailJson.put("mime", attach.getMimeTag());
-                emailJson.put("size", attach.getAttachSize());
-                emailJson.put("attachment", encodedAttach);
-
-                IndexResponse response = client.prepareIndex("attachments", dataType)
-                        .setSource(emailJson
-                        )
-                        .execute()
-                        .actionGet();
-
+                esHelper.pushAttachment(filename,encodedAttach,attach.getAttachSize(),attach.getMimeTag(),id);
             }
         }
     }
@@ -127,47 +103,6 @@ public class PSTHelper {
         attachmentStream.close();
         return Base64.getEncoder().encode(endBuffer);
 
-    }
-
-    private String pushEmail(PSTMessage email, String dataType) {
-        Map<String, Object> emailJson = new HashMap<>();
-        emailJson.put("topic", email.getConversationTopic());
-        emailJson.put("body", email.getBody());
-        emailJson.put("body_html", email.getBodyHTML());
-        emailJson.put("submit_time", email.getClientSubmitTime());
-        emailJson.put("sender", email.getSenderName());
-        emailJson.put("sender_email", email.getSenderEmailAddress());
-        emailJson.put("sent_to", email.getDisplayTo());
-        if (email.hasAttachments())
-            emailJson.put("has_attachment", true);
-
-
-        IndexResponse response = client.prepareIndex("data", dataType)
-                .setSource(emailJson
-                )
-                .execute()
-                .actionGet();
-        return response.getId();
-
-    }
-
-    public void prepareIndexesAndMappings(String dataType) throws IOException {
-
-
-        client.admin().indices().delete(new DeleteIndexRequest("data"));
-        client.admin().indices().delete(new DeleteIndexRequest("attachments"));
-
-        client.admin().indices().preparePutTemplate("data").
-                setSource(new String(Files.readAllBytes(Paths.get("data-template.json")))).
-                execute().actionGet();
-        client.admin().indices().preparePutTemplate("attachments").
-                setSource(new String(Files.readAllBytes(Paths.get("attachments-template.json")))).
-                execute().actionGet();
-        client.admin().indices().preparePutTemplate("attachments").
-                setSource(new String(Files.readAllBytes(Paths.get("attachments-template.json")))).
-                execute().actionGet();
-
-        client.admin().indices().create(Requests.createIndexRequest("data")).actionGet();
     }
 
 

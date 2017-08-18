@@ -4,13 +4,11 @@
     "index.refresh_interval" : "5s"
   },
   "mappings" : {
-    "attachments" : {
-      "_all" : {"enabled" : false},
-      "_source" : {"enabled" : false},
+    "*" : {
       "properties" : {
         "attachment":{"type":"binary","store":"true"},
         "filename":{"type":"keyword","store":"true"},
-        "data_id":{"type":"keyword","store":"true"},
+        "email_id":{"type":"keyword","store":"true"},
         "mime":{"type":"keyword","store":"true"},
         "size":{"type":"integer","store":"true"}
       }

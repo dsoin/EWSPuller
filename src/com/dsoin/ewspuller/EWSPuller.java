@@ -56,6 +56,9 @@ public class EWSPuller {
     @Option(name = "-dataType", required = false, usage = "Data type to use")
     private static String dataType = "emails";
 
+    @Option(name = "-indexName", required = false, usage = "ES index name")
+    private static String indexName = "data";
+
     @Option(name = "-esport", required = false, usage = "ES port")
     private static int esPort = 9300;
 
@@ -75,7 +78,7 @@ public class EWSPuller {
     private static boolean ingest_attachments = false;
 
     private static Logger log = LogManager.getLogger(EWSPuller.class);
-    private static TransportClient client;
+    private static ESHelper esHelper;
 
 
     public static void main(final String[] args) throws Exception {
@@ -91,11 +94,8 @@ public class EWSPuller {
             System.exit(0);
         }
 
-        client = new PreBuiltTransportClient(Settings.EMPTY)
-                .addTransportAddress(
-                        new InetSocketTransportAddress(InetAddress.getByName(esHost), esPort));
-
-        PSTHelper pstHelper = new PSTHelper(client);
+        PSTHelper pstHelper = new PSTHelper(esHost, esPort, indexName, dataType);
+        esHelper = new ESHelper(esHost,esPort,indexName, dataType);
 
         if (!"".equals(pstFile)) {
 
@@ -104,7 +104,7 @@ public class EWSPuller {
         }
 
         if (initES) {
-            pstHelper.prepareIndexesAndMappings(dataType);
+            esHelper.prepareIndexesAndMappings();
             System.exit(0);
         }
 
@@ -170,7 +170,7 @@ public class EWSPuller {
     }
 
     private static void pushEmailMode(Item item) throws Exception {
-        String id = pushEmail(item.getSubject(),item.getBody().toString(),
+        String id = esHelper.pushEmail(item.getSubject(),item.getBody().toString(),
                 item.getDateTimeSent(),((EmailMessage) item).getFrom().getName(),item.getHasAttachments());
         if (item.getHasAttachments()) {
             item.load();
@@ -204,66 +204,20 @@ public class EWSPuller {
     }
 
 
-    private static void pushAttachment(Attachment attach, String id) throws Exception {
-
-        if (!(attach instanceof FileAttachment))
-            return;
-
-        Map<String, Object> emailJson = new HashMap<>();
-        String filename = attach.getName();
-        ByteArrayOutputStream bs = new ByteArrayOutputStream();
-        ((FileAttachment) attach).load(bs);
-        byte data[] = Base64.encodeBase64(bs.toByteArray());
-        bs.close();
-        emailJson.put("filename", filename);
-        emailJson.put("email_id", id);
-        emailJson.put("size", attach.getSize());
-        emailJson.put("attachment", new String(data));
-        emailJson.put("mime", attach.getContentType());
-
-        IndexResponse response = client.prepareIndex("attachments", dataType)
-                .setSource(emailJson
-                )
-                .execute()
-                .actionGet();
-
-    }
-
-    private static String pushEmail(String subject, String bodyHtml, Date timeSent,
-                                    String from, boolean hasAttachments ) throws Exception {
-        Map<String, Object> emailJson = new HashMap<>();
-        String topic = subject.replaceAll("^(FW|Fwd|fwd|FWD|RE|fw|re|Re|Fw):\\s", "");
-        emailJson.put("topic", topic);
-        emailJson.put("body", Jsoup.parse(bodyHtml).body().text());
-        emailJson.put("body_html", bodyHtml);
-        emailJson.put("submit_time", timeSent);
-        emailJson.put("sender", from);
-        if (hasAttachments)
-            emailJson.put("has_attachment", true);
-
-        IndexResponse response = client.prepareIndex("emails", dataType)
-                .setSource(emailJson
-                )
-                .execute()
-                .actionGet();
-        return response.getId();
-
-    }
-
     private static void ingestAttachmentMode(Item email) throws ServiceLocalException {
-        ContentHandler handler = new ToXMLContentHandler();
-        AutoDetectParser parser = new AutoDetectParser();
-        Metadata metadata = new Metadata();
         for (Attachment attach : email.getAttachments()) {
+            ContentHandler handler = new ToXMLContentHandler();
+            AutoDetectParser parser = new AutoDetectParser();
+            Metadata metadata = new Metadata();
 
             log.info("Parsing " + attach.getName() + " " + attach.getSize() + " bytes");
             try {
                 attach.load();
                 try (InputStream stream = new ByteArrayInputStream(((FileAttachment) attach).getContent())) {
                     parser.parse(stream, handler, metadata);
-//                    log.info(Jsoup.parse(handler.toString()).body().text());
-                    if (!"".equals(handler.toString())) {
-                        String id = pushEmail(email.getSubject(),handler.toString(),email.getDateTimeSent(),
+                    log.info(Jsoup.parse(handler.toString()).body().text());
+                    if (!"".equals(Jsoup.parse(handler.toString()).body().text())) {
+                        String id = esHelper.pushEmail(email.getSubject(),handler.toString(),email.getDateTimeSent(),
                                 ((EmailMessage) email).getFrom().getName(),true);
                         pushAttachment(attach,id);
                     }
@@ -272,6 +226,17 @@ public class EWSPuller {
                 log.error("Skipping attachment: " + ((FileAttachment) attach).getName(),e);
             }
         }
+    }
+
+    private static void pushAttachment(Attachment attach, String id) throws Exception {
+        if (!(attach instanceof FileAttachment))
+            return;
+        String filename = attach.getName();
+        ByteArrayOutputStream bs = new ByteArrayOutputStream();
+        ((FileAttachment) attach).load(bs);
+        byte data[] = Base64.encodeBase64(bs.toByteArray());
+        bs.close();
+        esHelper.pushAttachment(filename,data,attach.getSize(),attach.getContentType(),id);
     }
 
 }
