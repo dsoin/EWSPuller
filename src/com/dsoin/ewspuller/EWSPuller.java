@@ -162,7 +162,7 @@ public class EWSPuller {
                     ingestAttachmentMode(item);
                 else
                     pushEmailMode(item);
-                //item.delete(DeleteMode.HardDelete);
+                item.delete(DeleteMode.HardDelete);
             } catch (Exception ex) {
                 log.error("Skipping email: "+item.getSubject(),ex);
             }
