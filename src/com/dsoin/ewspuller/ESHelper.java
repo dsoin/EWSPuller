@@ -67,7 +67,7 @@ public class ESHelper {
     public  String pushEmail(String subject, String bodyHtml, Date timeSent,
                                     String from, boolean hasAttachments ) throws Exception {
         Map<String, Object> emailJson = new HashMap<>();
-        String topic = subject.replaceAll("^(FW|Fwd|fwd|FWD|RE|fw|re|Re|Fw):\\s", "");
+        String topic = subject.replaceAll("^(FW|Fwd|fwd|FWD|RE|fw|re|Re|Fw|RFP|Rfp|rfp):\\s", "");
         emailJson.put("topic", topic);
         emailJson.put("body", Jsoup.parse(bodyHtml).body().text());
         emailJson.put("body_html", bodyHtml);
