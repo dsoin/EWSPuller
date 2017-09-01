@@ -4,7 +4,7 @@
         <Console name="Console" target="SYSTEM_OUT">
             <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level (%F:%L) - %msg%n%ex{full}"/>
         </Console>
-        <File name="EWSPuller" fileName="EWSPuller.log" immediateFlush="false" append="false">
+        <File name="EWSPuller" fileName="EWSPuller.log" immediateFlush="true" append="true">
             <PatternLayout pattern="%d{yyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
         </File>
     </Appenders>
