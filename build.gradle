@@ -44,5 +44,5 @@ applicationDistribution.from("ewspuller.properties") {
 }
 
 applicationDistribution.from("log4j2.xml") {
-    into ""
+    into "lib"
 }
